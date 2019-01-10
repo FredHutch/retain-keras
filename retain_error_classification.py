@@ -93,21 +93,13 @@ def main(ARGS):
 
 def parse_arguments(parser):
     """Read user arguments"""
-    parser.add_argument('--path_model',
-                        type=str, default='Model/weights.01.hdf5',
-                        help='Path to the model to evaluate')
+
     parser.add_argument('--path_data', type=str, default='data/data_test.pkl',
                         help='Path to evaluation data')
     parser.add_argument('--path_target', type=str, default='data/target_test.pkl',
                         help='Path to evaluation target')
     parser.add_argument('--path_features', type=str, default='data/dictionary.pkl',
                         help='Path to feature dictionary')
-    parser.add_argument('--omit_graphs', action='store_false',
-                        help='Does not output graphs if argument is present')
-    parser.add_argument('--n_steps', type=int, default=300,
-                        help='Maximum number of visits after which the data is truncated')
-    parser.add_argument('--batch_size', type=int, default=32,
-                        help='Batch size for prediction (higher values are generally faster)')
     args = parser.parse_args()
 
     return args
