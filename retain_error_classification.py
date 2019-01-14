@@ -62,7 +62,10 @@ def make_a_tree(data, target, ARGS, depth=10):
 def read_data(ARGS):
     """Read the data from provided paths and assign it into lists"""    
     data = pd.read_pickle(ARGS.path_data)
-    y = pd.read_pickle(ARGS.path_target)['target'].values
+    if ARGS.path_target.endswith('.csv'):
+        y = pd.read_csv(ARGS.path_target)['target'].values
+    else:
+        y = pd.read_pickle(ARGS.path_target)['target'].values
     data_output = [data['codes'].values]
     with open(ARGS.path_features, 'rb') as f:
         feature_dict = pickle.load(f)
