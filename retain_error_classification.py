@@ -17,17 +17,18 @@ def get_code(tree, feature_names):
     features  = [feature_names[i] for i in tree.tree_.feature]
     value = tree.tree_.value
 
-    def recurse(left, right, threshold, features, node):
+    def recurse(left, right, threshold, features, node, indentation=0):
+        INDENT = "  "
         if (threshold[node] != -2):
-            print( "if (  {}  <= {}  ) {{".format(features[node], str(threshold[node])))
+            print( "{}if (  {}  <= {}  ) {{".format(INDENT*indentation, features[node], str(threshold[node])))
             if left[node] != -1:
-                recurse (left, right, threshold, features,left[node])
-                print( "} else {")
+                recurse (left, right, threshold, features,left[node], indentation=indentation+1)
+                print( "{}}} else {{".format(INDENT*indentation))
             if right[node] != -1:
-                recurse (left, right, threshold, features,right[node])
-                print( "}")
+                recurse (left, right, threshold, features,right[node], indentation=indentation+1)
+                print( "{}}}".format(INDENT*indentation))
         else:
-            print( "return {}".format(str(value[node])))
+            print( "{}return {}".format(INDENT*indentation, str(value[node])))
 
     recurse(left, right, threshold, features, 0)
             
