@@ -52,8 +52,8 @@ def convert_data_to_code_df(data, ARGS):
     return code_df
 
 
-def make_a_tree(data, target, ARGS, depth=10):
-    model = tree.DecisionTreeClassifier(criterion='entropy', max_depth=depth)
+def make_a_tree(data, target, ARGS):
+    model = tree.DecisionTreeClassifier(criterion='entropy', max_depth=ARGS.depth)
 
     model.fit(data, target)
 
@@ -104,6 +104,9 @@ def parse_arguments(parser):
                         help='Path to evaluation target')
     parser.add_argument('--path_features', type=str, default='data/dictionary.pkl',
                         help='Path to feature dictionary')
+    parser.add_argument('--depth', type=int, default=5,
+                        help='The maximum depth of the decision tree')
+
     args = parser.parse_args()
 
     return args
