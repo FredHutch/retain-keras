@@ -8,7 +8,7 @@ import pickle
 from sklearn.metrics import roc_auc_score, average_precision_score,\
                             precision_recall_curve, roc_curve
 from sklearn.calibration import calibration_curve
-from sklearn import tree
+from sklearn import tree as sktree
 
 def get_code(tree, feature_names):
     left      = tree.tree_.children_left
@@ -53,7 +53,7 @@ def convert_data_to_code_df(data, ARGS):
 
 
 def make_a_tree(data, target, ARGS):
-    model = tree.DecisionTreeClassifier(criterion='entropy', max_depth=ARGS.depth)
+    model = sktree.DecisionTreeClassifier(criterion='entropy', max_depth=ARGS.depth)
 
     model.fit(data, target)
 
@@ -90,10 +90,11 @@ def main(ARGS):
 
     tree = make_a_tree(x_df, y, ARGS)
 
-    feature_list = list(feature_dict.values())
+    feature_list = [feature_dict[i] for i in list(x_df.columns.values)] 
     get_code(tree, feature_list)
     
-    
+    with open("decisiontree_D{}.dot".format(ARGS.depth), 'w') as dotfile:
+        sktree.export_graphviz(tree, out_file=dotfile, feature_names=feature_list)
 
 def parse_arguments(parser):
     """Read user arguments"""
