@@ -5,8 +5,101 @@ import numpy as np
 import pandas as pd
 import pickle
 from sklearn import tree
+from sklearn.metrics import roc_auc_score, average_precision_score,\
+                            precision_recall_curve, roc_curve
+from sklearn.calibration import calibration_curve
+import matplotlib.pyplot as plt
 
-from retain_evaluation import precision_recall, probability_calibration, lift, roc
+def precision_recall(y_true, y_prob, graph):
+    """Print Precision Recall Statistics and Graph"""
+    average_precision = average_precision_score(y_true, y_prob)
+    if graph:
+        precision, recall, _ = precision_recall_curve(y_true, y_prob)
+        plt.style.use('ggplot')
+        plt.clf()
+        plt.plot(recall, precision,
+                 label='Precision-Recall Curve  (Area = %0.3f)' % average_precision)
+        plt.xlabel('Recall: P(predicted+|true+)')
+        plt.ylabel('Precision: P(true+|predicted+)')
+        plt.ylim([0.0, 1.05])
+        plt.xlim([0.0, 1.0])
+        plt.legend(loc="lower left")
+        print('Precision-Recall Curve saved to pr.png')
+        plt.savefig('pr.png')
+    else:
+        print('Average Precision %0.3f' % average_precision)
+
+def probability_calibration(y_true, y_prob,graph):
+    if graph:
+        fig_index = 1
+        name = 'My pred'
+        n_bins = 20
+        fig = plt.figure(fig_index, figsize=(10, 10))
+        ax1 = plt.subplot2grid((3, 1), (0, 0), rowspan=2)
+        ax2 = plt.subplot2grid((3, 1), (2, 0))
+
+        ax1.plot([0, 1], [0, 1], "k:", label="Perfectly calibrated")
+
+        fraction_of_positives, mean_predicted_value = \
+            calibration_curve(y_true, y_prob, n_bins=n_bins, normalize=True)
+
+        ax1.plot(mean_predicted_value, fraction_of_positives,
+                 label=name)
+
+        ax2.hist(y_prob, range=(0, 1), bins=n_bins, label=name,
+                 histtype="step", lw=2)
+
+        ax1.set_ylabel("Fraction of Positives")
+        ax1.set_ylim([-0.05, 1.05])
+        ax1.legend(loc="lower right")
+        ax1.set_title('Calibration Plots  (Reliability Curve)')
+
+        ax2.set_xlabel("Mean predicted value")
+        ax2.set_ylabel("Count")
+        ax2.legend(loc="upper center", ncol=2)
+        print('Probability Calibration Curves saved to calibration.png')
+        plt.tight_layout()
+        plt.savefig('calibration.png')
+
+def lift(y_true, y_prob, graph):
+    """Print Precision Recall Statistics and Graph"""
+    prevalence = sum(y_true)/len(y_true)
+    average_lift = average_precision_score(y_true, y_prob) / prevalence
+    if graph:
+        precision, recall, _ = precision_recall_curve(y_true, y_prob)
+        lift_values = precision/prevalence
+        plt.style.use('ggplot')
+        plt.clf()
+        plt.plot(recall, lift_values,
+                 label='Lift-Recall Curve  (Area = %0.3f)' % average_lift)
+        plt.xlabel('Recall: P(predicted+|true+)')
+        plt.ylabel('Lift')
+        plt.xlim([0.0, 1.0])
+        plt.legend(loc="lower left")
+        print('Lift-Recall Curve saved to lift.png')
+        plt.savefig('lift')
+    else:
+        print('Average Lift %0.3f' % average_lift)
+
+def roc(y_true, y_prob, graph):
+    """Print ROC Statistics and Graph"""
+    roc_auc = roc_auc_score(y_true, y_prob)
+    if graph:
+        fpr, tpr, _ = roc_curve(y_true, y_prob)
+        plt.plot(fpr, tpr, color='darkorange', lw=2,
+                 label='ROC curve (Area = %0.3f)'% roc_auc)
+        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate (1 - Specifity)')
+        plt.ylabel('True Positive Rate (Sensitivity)')
+        plt.title('Receiver Operating Characteristic')
+        plt.legend(loc="lower right")
+        print('ROC Curve saved to roc.png')
+        plt.savefig('roc.png')
+    else:
+        print('ROC-AUC %0.3f' % roc_auc)
+
 def good_print_tree(estimator, feature_names, x_test):
     # The decision estimator has an attribute called tree_  which stores the entire
     # tree structure and allows access to low level attributes. The binary tree
@@ -232,7 +325,7 @@ def main(ARGS):
     print(len(features))
     #good_print_tree(tree, feature_list, x_df)
     get_code(dt, features)
-    with open("decisiontree_D5.dot", 'w') as dotfile:
+    with open("decisiontree_D{}.dot".format(ARGS.depth), 'w') as dotfile:
         tree.export_graphviz(dt, out_file=dotfile, feature_names=features)
 
 
@@ -246,7 +339,7 @@ def parse_arguments(parser):
                         help='Path to evaluation target')
     parser.add_argument('--path_features', type=str, default='C:/Users/whiteau/Documents/non_partial_data/dictionary.pkl',
                         help='Path to feature dictionary')
-    parser.add_argument('--depth', type=int, default=10,
+    parser.add_argument('--depth', type=int, default=4,
                         help='The maximum depth of the decision tree')
     parser.add_argument('--omit_graphs', action='store_false',
                         help='Does not output graphs if argument is present')
