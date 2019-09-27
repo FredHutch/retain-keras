@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import keras.layers as L
+import mlflow
+import mlflow.keras
 from keras import backend as K
 from keras.models import Model
 from keras.callbacks import ModelCheckpoint, Callback
@@ -123,6 +125,12 @@ def read_data(ARGS):
     if ARGS.use_time:
         data_output_train.append(data_train_df['to_event'].values)
         data_output_test.append(data_test_df['to_event'].values)
+
+    mlflow.log_artifact(ARGS.path_data_train, artifact_path='input/train')
+    mlflow.log_artifact(ARGS.path_target_train, artifact_path='input/train')
+    mlflow.log_artifact(ARGS.path_data_test, artifact_path='input/test')
+    mlflow.log_artifact(ARGS.path_target_test, artifact_path='input/test')
+
     return (data_output_train, y_train, data_output_test, y_test)
 
 def model_create(ARGS):
@@ -140,6 +148,12 @@ def model_create(ARGS):
             embeddings_constraint = FreezePadding_Non_Negative()
             beta_activation = 'sigmoid'
             output_constraint = non_neg()
+            
+        """Log Model Params for MLFlow"""
+        log_args(ARGS)
+        mlflow.log_params({"beta_activation": beta_activation,
+                           "output_constraint": output_constraint
+                           })
 
 
 
@@ -274,6 +288,9 @@ def create_callbacks(model, data, ARGS):
                                                        max_queue_size=5)]
                 score_roc = roc_auc_score(self.y_test, y_pred)
                 score_pr = average_precision_score(self.y_test, y_pred)
+                mlflow.log_metric("score_roc", score_roc, step=epoch)
+                mlflow.log_metric("score_pr", score_pr, step=epoch)
+
                 #Create log files if it doesn't exist, otherwise write to it
                 if os.path.exists(self.filepath):
                     append_write = 'a'
@@ -301,6 +318,9 @@ def train_model(model, data_train, y_train, data_test, y_test, ARGS):
                         max_queue_size=15, use_multiprocessing=True,
                         callbacks=[checkpoint, log], verbose=1, workers=3, initial_epoch=0)
 
+def log_args(ARGS):
+    mlflow.log_params({k:str(v) for k,v in vars(ARGS).items()})
+
 def main(ARGS):
     """Main function"""
     print('Reading Data')
@@ -313,8 +333,12 @@ def main(ARGS):
     train_model(model=model, data_train=data_train, y_train=y_train,
                 data_test=data_test, y_test=y_test, ARGS=ARGS)
 
+    mlflow.keras.log_model(model, "model")
+
 def parse_arguments(parser):
     """Read user arguments"""
+    parser.add_argument('--model_name', type=str, default='retain',
+                        help='The Name of the Model. Used in MLFlow logging')
     parser.add_argument('--num_codes', type=int, required=True,
                         help='Number of medical codes')
     parser.add_argument('--numeric_size', type=int, default=0,
@@ -358,4 +382,6 @@ if __name__ == '__main__':
 
     PARSER = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     ARGS = parse_arguments(PARSER)
-    main(ARGS)
+    with  mlflow.start_run() as run:
+        mlflow.set_experiment(ARGS.model_name)
+        main(ARGS)
