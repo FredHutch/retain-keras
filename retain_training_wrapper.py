@@ -3,14 +3,12 @@ import logging
 import mlflow
 import pandas as pd
 from retain_train import parse_arguments, model_create, train_model
-from train_validation_split import generate_train_test_split_cv, HYPERPARAM_SEARCH
+from train_validation_split import generate_train_test_split_cv, xform_dataframes, HYPERPARAM_SEARCH
 
 logger = logging.getLogger(__name__)
 
 
 def train_wrapper(dataset, ARGS):
-
-
     k_folds = ARGS.k_folds
     n_repeats = ARGS.n_repeats
     i = 0
@@ -18,31 +16,42 @@ def train_wrapper(dataset, ARGS):
     hyperparam_list = [(ARGS.l2, ARGS.dropout_input, ARGS.use_time)]
     if ARGS.hyperparam_search is True:
         hyperparam_list = HYPERPARAM_SEARCH
-    for param_set in hyperparam_list:
-        logger.info("Hyperparam search is {}. "
-                    "hyperparam set is: L2 {}, embedding dropout {}, use time {}".format(ARGS.hyperparam_search,
-                                                                                         param_set[0],
-                                                                                         param_set[1],
-                                                                                         param_set[2]))
-        ARGS.l2, ARGS.dropout_input, ARGS.use_time = param_set #hacky, but lets us leave retain code mostly unmodified
-        for data_train, y_train, data_test, y_test in generate_train_test_split_cv(dataset,
+
+    with  mlflow.start_run() as run:
+        for odata_train, oy_train, odata_test, oy_test in generate_train_test_split_cv(dataset,
                                                                                    ARGS,
                                                                                    k_folds=k_folds,
                                                                                    n_repeats=n_repeats,
                                                                                    random_seed=12345):
-            k = i % k_folds
-            n = k % n_repeats
-            print('Creating Model for K={k}, N={n}'.format(k=k, n=n))
-            model = model_create(ARGS)
-            print('Training Model')
 
-            train_model(model=model, data_train=data_train, y_train=y_train,
-                        data_test=data_test, y_test=y_test, ARGS=ARGS)
+            for param_set in hyperparam_list:
+                logger.info("Hyperparam search is {}. "
+                            "hyperparam set is: L2 {}, embedding dropout {}, use time {}".format(
+                    ARGS.hyperparam_search,
+                    param_set[0],
+                    param_set[1],
+                    param_set[2]))
+                ARGS.l2, ARGS.dropout_input, ARGS.use_time = param_set  # hacky, but lets us leave retain code mostly unmodified
+                data_train, y_train, data_test, y_test = xform_dataframes(odata_train, oy_train, odata_test, oy_test, ARGS)
+                with  mlflow.start_run(nested=True) as run:
+                    k = i % k_folds
+                    n = k % n_repeats
+                    mlflow.set_tags({'k': k,
+                                     'n':n,
+                                     'L2':ARGS.l2,
+                                     'Dropout': ARGS.dropout_input,
+                                     'use_time':ARGS.use_time})
+                    logger.info('Creating Model for K={k}, N={n}'.format(k=k, n=n))
+                    model = model_create(ARGS)
+                    logger.info('Training Model')
 
-            mlflow.keras.log_model(model, "model_{k}_{n}".format(k=k, n=n))
-            i+=1
-            if i % k_folds == k_folds-1:
-                j+=1
+                    train_model(model=model, data_train=data_train, y_train=y_train,
+                                data_test=data_test, y_test=y_test, ARGS=ARGS)
+
+                    mlflow.keras.log_model(model, "model_{k}_{n}".format(k=k, n=n))
+                    i+=1
+                    if i % k_folds == k_folds-1:
+                        j+=1
 
 
 if __name__ == '__main__':
@@ -63,6 +72,6 @@ if __name__ == '__main__':
 
     ARGS = parse_arguments(PARSER)
 
-    with  mlflow.start_run() as run:
-        training_dataset = pd.read_pickle(ARGS.path_dataset)
-        train_wrapper(training_dataset, ARGS)
+    mlflow.set_experiment(ARGS.model_name)
+    training_dataset = pd.read_pickle(ARGS.path_dataset)
+    train_wrapper(training_dataset, ARGS)

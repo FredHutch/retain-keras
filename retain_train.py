@@ -3,10 +3,12 @@ import os
 import argparse
 import numpy as np
 import pandas as pd
+import platform
 import tensorflow as tf
 import keras.layers as L
 import mlflow
 import mlflow.keras
+from six.moves import urllib
 from keras import backend as K
 from keras.models import Model
 from keras.callbacks import ModelCheckpoint, Callback
@@ -126,10 +128,11 @@ def read_data(ARGS):
         data_output_train.append(data_train_df['to_event'].values)
         data_output_test.append(data_test_df['to_event'].values)
 
-    mlflow.log_artifact(ARGS.path_data_train, artifact_path='input/train')
-    mlflow.log_artifact(ARGS.path_target_train, artifact_path='input/train')
-    mlflow.log_artifact(ARGS.path_data_test, artifact_path='input/test')
-    mlflow.log_artifact(ARGS.path_target_test, artifact_path='input/test')
+    if mlflow.active_run():
+        mlflow.log_artifact(ARGS.path_data_train, artifact_path='input/train')
+        mlflow.log_artifact(ARGS.path_target_train, artifact_path='input/train')
+        mlflow.log_artifact(ARGS.path_data_test, artifact_path='input/test')
+        mlflow.log_artifact(ARGS.path_target_test, artifact_path='input/test')
 
     return (data_output_train, y_train, data_output_test, y_test)
 
@@ -150,10 +153,11 @@ def model_create(ARGS):
             output_constraint = non_neg()
             
         """Log Model Params for MLFlow"""
-        log_args(ARGS)
-        mlflow.log_params({"beta_activation": beta_activation,
-                           "output_constraint": output_constraint
-                           })
+        if mlflow.active_run():
+            log_args(ARGS)
+            mlflow.log_params({"beta_activation": beta_activation,
+                               "output_constraint": output_constraint
+                               })
 
 
 
@@ -288,8 +292,9 @@ def create_callbacks(model, data, ARGS):
                                                        max_queue_size=5)]
                 score_roc = roc_auc_score(self.y_test, y_pred)
                 score_pr = average_precision_score(self.y_test, y_pred)
-                mlflow.log_metric("score_roc", score_roc, step=epoch)
-                mlflow.log_metric("score_pr", score_pr, step=epoch)
+                if mlflow.active_run():
+                    mlflow.log_metric("score_roc", score_roc, step=epoch)
+                    mlflow.log_metric("score_pr", score_pr, step=epoch)
 
                 #Create log files if it doesn't exist, otherwise write to it
                 if os.path.exists(self.filepath):
@@ -305,8 +310,14 @@ def create_callbacks(model, data, ARGS):
 
 
     #Create callbacks
-    checkpoint = ModelCheckpoint(filepath=ARGS.directory+'/weights.{epoch:02d}.hdf5')
-    log = LogEval(ARGS.directory+'/log.txt', model, data, ARGS)
+    filepath = ARGS.directory
+    if mlflow.active_run():
+        filepath = urllib.parse.urlparse(mlflow.get_artifact_uri()).path
+        if platform.system() == 'Windows':
+            filepath = filepath[1:]
+
+    checkpoint = ModelCheckpoint(filepath=filepath+'/weights.{epoch:02d}.hdf5')
+    log = LogEval(filepath+'/log.txt', model, data, ARGS)
     return(checkpoint, log)
 
 def train_model(model, data_train, y_train, data_test, y_test, ARGS):
@@ -332,8 +343,8 @@ def main(ARGS):
     print('Training Model')
     train_model(model=model, data_train=data_train, y_train=y_train,
                 data_test=data_test, y_test=y_test, ARGS=ARGS)
-
-    mlflow.keras.log_model(model, "model")
+    if mlflow.active_run():
+        mlflow.keras.log_model(model, "model")
 
 def parse_arguments(parser):
     """Read user arguments"""
@@ -382,6 +393,4 @@ if __name__ == '__main__':
 
     PARSER = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     ARGS = parse_arguments(PARSER)
-    with  mlflow.start_run() as run:
-        mlflow.set_experiment(ARGS.model_name)
-        main(ARGS)
+    main(ARGS)

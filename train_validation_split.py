@@ -191,6 +191,26 @@ class CustomGroupKFold(_BaseKFold):
         """
         return super(CustomGroupKFold, self).split(X, y, groups)
 
+
+def xform_dataframes(data_train, target_train, data_test, target_test, ARGS):
+    """Read the data from provided paths and assign it into lists"""
+    y_train = target_train['target'].values
+    y_test = target_test['target'].values
+    data_output_train = [data_train['codes'].values]
+    data_output_test = [data_test['codes'].values]
+
+    if ARGS.numeric_size:
+        data_output_train.append(data_train['numerics'].values)
+        data_output_test.append(data_test['numerics'].values)
+    if ARGS.use_time:
+        data_output_train.append(data_train['to_event'].values)
+        data_output_test.append(data_test['to_event'].values)
+
+    mlflow.log_artifact(ARGS.path_dataset, artifact_path='input/train')
+
+    return (data_output_train, y_train, data_output_test, y_test)
+
+
 def generate_train_test_split_cv(df, ARGS, k_folds=None, n_repeats=None, random_seed=None):
     """
     split train dev sets using cross validation
@@ -201,23 +221,7 @@ def generate_train_test_split_cv(df, ARGS, k_folds=None, n_repeats=None, random_
     :param random_seed: the random seed (if any) to use
     :return: data_train, target_train, data_test, target_test
     """
-    def xform_dataframes(data_train, target_train, data_test, target_test, ARGS):
-        """Read the data from provided paths and assign it into lists"""
-        y_train = target_train['target'].values
-        y_test = target_test['target'].values
-        data_output_train = [data_train['codes'].values]
-        data_output_test = [data_test['codes'].values]
 
-        if ARGS.numeric_size:
-            data_output_train.append(data_train['numerics'].values)
-            data_output_test.append(data_test['numerics'].values)
-        if ARGS.use_time:
-            data_output_train.append(data_train['to_event'].values)
-            data_output_test.append(data_test['to_event'].values)
-
-        mlflow.log_artifact(ARGS.path_dataset, artifact_path='input/train')
-
-        return (data_output_train, y_train, data_output_test, y_test)
 
     X = df.iloc[:, df.columns != 'target']
     y = df.target.to_frame()
@@ -239,8 +243,8 @@ def generate_train_test_split_cv(df, ARGS, k_folds=None, n_repeats=None, random_
         df_subset['data_train'], df_subset['data_test'] = X.iloc[train_index], X.iloc[test_index]
         df_subset['target_train'], df_subset['target_test'] = y.iloc[train_index], y.iloc[test_index]
 
-        yield xform_dataframes(df_subset['data_train'], df_subset['target_train'],
-              df_subset['data_test'], df_subset['target_test'], ARGS)
+        yield (df_subset['data_train'], df_subset['target_train'],
+              df_subset['data_test'], df_subset['target_test'])
 
 
 
