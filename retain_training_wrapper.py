@@ -48,7 +48,7 @@ def train_wrapper(dataset, ARGS):
                     train_model(model=model, data_train=data_train, y_train=y_train,
                                 data_test=data_test, y_test=y_test, ARGS=ARGS)
 
-                    mlflow.keras.log_model(model, "model_{k}_{n}".format(k=k, n=n))
+                    mlflow.keras.log_model(model, "model".format(k=k, n=n))
                     i+=1
                     if i % k_folds == k_folds-1:
                         j+=1

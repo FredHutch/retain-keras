@@ -1,5 +1,7 @@
 """RETAIN Model Evaluation"""
 import argparse
+import mlflow
+import mlflow.keras
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, average_precision_score,\
@@ -26,6 +28,25 @@ def import_model(path):
     if len(get_available_gpus()) > 1:
         model = make_parallel(model)
     return model
+
+def load_mlflow_model(run_id):
+    model = mlflow.keras.load_model("runs:/{run_id}/model/".format(run_id=run_id),
+                                    custom_objects={'FreezePadding':FreezePadding,
+                                             'FreezePadding_Non_Negative':FreezePadding_Non_Negative})
+    return model
+
+
+def import_mlflow_model(run_id):
+    K.clear_session()
+    config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
+    config.gpu_options.allow_growth = True
+    tfsess = tf.Session(config=config)
+    K.set_session(tfsess)
+    model = load_mlflow_model(run_id)
+    if len(get_available_gpus()) > 1:
+        model = make_parallel(model)
+    return model
+
 
 def get_model_parameters(model):
     """Extract model arguments that were used during training"""
@@ -260,7 +281,10 @@ def output_results(info_dict, y_prob, output, inflection_point):
 def main(ARGS):
     """Main Body of the code"""
     print('Loading Model and Extracting Parameters')
-    model = import_model(ARGS.path_model)
+    if ARGS.mlflow_model is not None:
+        model = import_mlflow_model(ARGS.mlflow_model)
+    else:
+        model = import_model(ARGS.path_model)
     model_parameters = get_model_parameters(model)
     print('Reading Data')
     info = read_data(model_parameters, ARGS)
@@ -275,6 +299,9 @@ def main(ARGS):
 
 def parse_arguments(parser):
     """Read user arguments"""
+    parser.add_argument('--mlflow_model',
+                        type=str, default=None,
+                        help='the runID of the mlflow model to use (supercedes path_model)')
     parser.add_argument('--path_model',
                         type=str, default='Model/weights.01.hdf5',
                         help='Path to the model to evaluate')
